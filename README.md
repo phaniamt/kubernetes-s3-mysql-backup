@@ -98,7 +98,7 @@ metadata:
   name: my-database-backup
   namespace: dev
 spec:
-  schedule: "*/5 * * * *"
+  schedule: "0 01 * * *"
   jobTemplate:
     spec:
       template:
