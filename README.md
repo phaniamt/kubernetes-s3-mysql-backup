@@ -77,76 +77,69 @@ An example of how to schedule this container in Kubernetes as a cronjob is below
 apiVersion: v1
 kind: Secret
 metadata:
-  name: AWS_SECRET_ACCESS_KEY
-type: Opaque
+  name: mysql-backup-secrets
+  labels:
+    app: mysql-backup
 data:
-  aws_secret_access_key: <AWS Secret Access Key>
----
-apiVersion: v1
-kind: Secret
-metadata:
-  name: TARGET_DATABASE_PASSWORD
-type: Opaque
-data:
-  database_password: <Your Database Password>
----
-apiVersion: v1
-kind: Secret
-metadata:
-  name: SLACK_WEBHOOK_URL
-type: Opaque
-data:
-  slack_webhook_url: <Your Slack WebHook URL>
+  aws-access-id: QUtJQVVKQBDSZQ1dHRE9DMlZZNlk=
+  aws-secret-key: S3lzNVVkTjZpMTRoVSKds1BTaVdadVVGM2lGRUl5SFJyDDJiQmwxZw==
+  target-database-user: d29yZHByZXNz
+  target-database-password: d29yZHByZXNzMTIz
+
+# Encode base 64
+# echo -n wordpress123|base64
+# Decode base 64
+# echo -n d29yZHByZXNzMTIz |base64 -d
+
 ---
 apiVersion: batch/v1beta1
 kind: CronJob
 metadata:
   name: my-database-backup
+  namespace: dev
 spec:
-  schedule: "0 01 * * *"
+  schedule: "*/5 * * * *"
   jobTemplate:
     spec:
       template:
         spec:
           containers:
           - name: my-database-backup
-            image: gcr.io/maynard-io-public/kubernetes-s3-mysql-backup
+            image: yphani/kubernetes-s3-mysql-backup
             imagePullPolicy: Always
             env:
               - name: AWS_ACCESS_KEY_ID
-                value: "<Your Access Key>"
+                valueFrom:
+                   secretKeyRef:
+                     name: mysql-backup-secrets
+                     key: aws-access-id
               - name: AWS_SECRET_ACCESS_KEY
                 valueFrom:
-                   secretKeyRef:
-                     name: AWS_SECRET_ACCESS_KEY
-                     key: aws_secret_access_key
+                  secretKeyRef:
+                    name: mysql-backup-secrets
+                    key: aws-secret-key
               - name: AWS_DEFAULT_REGION
-                value: "<Your S3 Bucket Region>"
+                value: "eu-central-1"
               - name: AWS_BUCKET_NAME
-                value: "<Your S3 Bucket Name>"
+                value: "mysql-backup-phani"
               - name: AWS_BUCKET_BACKUP_PATH
-                value: "<Your S3 Bucket Backup Path>"
+                value: "/backup"
               - name: TARGET_DATABASE_HOST
-                value: "<Your Target Database Host>"
+                value: "mysql-1"
               - name: TARGET_DATABASE_PORT
-                value: "<Your Target Database Port>"
+                value: "3306"
               - name: TARGET_DATABASE_NAMES
-                value: "<Your Target Database Name(s)>"
+                value: "wordpress,mysql"
               - name: TARGET_DATABASE_USER
-                value: "<Your Target Database Username>"
+                valueFrom:
+                  secretKeyRef:
+                    name: mysql-backup-secrets
+                    key: target-database-user
               - name: TARGET_DATABASE_PASSWORD
                 valueFrom:
-                   secretKeyRef:
-                     name: TARGET_DATABASE_PASSWORD
-                     key: database_password
-              - name: SLACK_ENABLED
-                value: "<true/false>"
-              - name: SLACK_CHANNEL
-                value: "#chatops"
-              - name: SLACK_WEBHOOK_URL
-                valueFrom:
-                   secretKeyRef:
-                     name: SLACK_WEBHOOK_URL
-                     key: slack_webhook_url
+                  secretKeyRef:
+                    name: mysql-backup-secrets
+                    key: target-database-password
           restartPolicy: Never
+
 ```
